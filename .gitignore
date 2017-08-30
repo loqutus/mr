@@ -3,3 +3,5 @@
 tests/__pycache__/
 *.pyc
 tests/*.pyc
+data/*
+.idea/*
