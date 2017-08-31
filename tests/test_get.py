@@ -6,8 +6,8 @@ HOST = 'http://127.0.0.1:8080'
 
 class TestGet(object):
     def test_get_tasks(self):
-        test_data = {"input": "test", "map": "map.bin", "reduce": "reduce.bin"}
-        check_data = '{"test": {"input": "test", "map": "map.bin", "reduce": "reduce.bin", "id": 1}}'
+        test_data = {"input": "test", "map": "test", "reduce": "test"}
+        check_data = '{"test": {"input": "test", "map": "test", "reduce": "test", "id": 1}}'
         post = requests.post(HOST + '/api/add_task/test', json=test_data)
         assert post.status_code == 200
         r = requests.get(HOST + '/api/get_tasks')
