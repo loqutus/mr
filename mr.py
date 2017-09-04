@@ -6,6 +6,10 @@ from os.path import isfile
 import json
 
 data_dir = '/home/rusik/mr/data/'
+input_dir = data_dir + 'input/'
+split_dir = data_dir + 'split_input/'
+map_dir = data_dir + 'map/'
+reduce_dir = data_dir + 'reduce/'
 
 app = Flask(__name__)
 tasks = {}
@@ -40,27 +44,54 @@ def split_input(input_name):
                     print('split ' + split_name + ' already exists')
 
 
-def sftp_copy(local_filename, host, remote_dir, remote_filename, user):
+def sftp_copy_to(local_file, remote_file, host, user):
     with SSHClient() as ssh:
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(host, 22, user)
         ftp_client = ssh.open_sftp()
-        ftp_client.put(data_dir + local_filename, remote_dir + '/' + remote_filename)
+        ftp_client.put(local_file, remote_file)
         ftp_client.close()
 
 
-def copy_to_hosts(task_name):
-    print('copy_to_hosts')
-    task_input = tasks[task_name]['input']
-    task_map = tasks[task_name]['map']
-    task_reduce = tasks[task_name]['reduce']
+def sftp_copy_from(remote_file, local_file, host, user):
+    with SSHClient as ssh:
+        ssh.set_missing_host_key_policy(AutoAddPolicy())
+        ssh.connect(host, 22, user)
+        ftp_client = ssh.open_sftp()
+        ftp_client.get(remote_file, local_file)
+        ftp_client.close()
+
+
+def copy_to_hosts(task):
+    print('copy to hosts')
     for host, host_params in hosts.items():
-        host_input_split = task_input + '.' + str(host_params['id'])
-        directory = host_params['dir']
-        user = host_params['user']
-        sftp_copy('split_input/' + host_input_split, host, directory, 'input/' + task_input, user)
-        sftp_copy('map/' + task_map, host, directory, 'map/' + task_map, user)
-        sftp_copy('reduce/' + task_reduce, host, directory, 'reduce/' + task_input, user)
+        input_split = task['input'] + '.' + str(host_params['id'])
+        sftp_copy_to(split_dir + input_split, input_dir + task['input'], host, host_params['user'])
+        sftp_copy_to(map_dir + task['map'], map_dir + task['map'], host, host_params['user'])
+        sftp_copy_to(reduce_dir + task['reduce'], map_dir + task['reduce'], host,
+                     host_params['user'])
+
+
+def get_output(task):
+    print('get output')
+    for host, host_params in hosts.items():
+        input_split = task['input'] + '.' + str(host_params['id'])
+        sftp_copy_from()
+
+
+def ssh_run(task, input_name, output, host, user):
+    with SSHClient() as ssh:
+        ssh.set_missing_host_key_policy(AutoAddPolicy())
+        ssh.connect(host, 22, user)
+        command = '/usr/bin/env python {task} {input} {output}'.format(task=task, input=input_name, output=output)
+        (stdin, stdout, stderr) = ssh.exec_command(command)
+        ssh.close()
+
+
+def run_task(task):
+    print('run task')
+    for host, host_params in hosts.items():
+        ssh_run(task, host, host_params['user'])
 
 
 # add task to tasks dict
@@ -154,7 +185,9 @@ def add_input(input_name):
 def run_task(task_name):
     print('running task ' + task_name)
     split_input(tasks[task_name]['input'])
-    copy_to_hosts(task_name)
+    copy_to_hosts(tasks[task_name])
+    run_task(tasks[task_name])
+    get_output(tasks[task_name])
     del tasks[task_name]
     return 'ok', 200
 
